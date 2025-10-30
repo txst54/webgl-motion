@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" type="text/css" href="index.css" />
+    <title>WebGL - PathTracer</title>
+</head>
+<body class="max-h-screen w-screen">
+<div class="h-screen w-screen">
+    <div class="h-full w-full flex justify-center items-center">
+        <div class="relative flex justify-center items-center h-4/5 w-2/3">
+            <canvas id="glCanvas" class="w-full h-full">
+                Your browser does not support HTML5 </canvas
+            >
+            <canvas id="textCanvas" class="absolute z-10 left-0 top-0 w-full h-full">
+                Your browser does not support HTML5 </canvas
+            >
+            <div id="fpsOverlay" class="absolute top-4 left-4 z-20 bg-black/50 text-white px-3 py-2 rounded font-mono text-sm">
+                <div class="pb-2">
+                    <div>FPS: <span id="fpsValue">--</span></div>
+                    <div>Frame Time: <span id="frameTimeValue">--</span>ms</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+<script type="module" src="src/pathtracer/index.ts"></script>
+</body>
+</html>
