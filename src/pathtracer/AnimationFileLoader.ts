@@ -3,7 +3,8 @@ import { Object3D, Scene, MeshLambertMaterial, SkinnedMesh, BufferGeometry} from
 import { Vec3 } from "../lib/tsm/Vec3.js";
 import { Mat4, Vec4 } from "../lib/TSM.js";
 import { Quat } from "../lib/tsm/Quat.js";
-import { Mesh } from "./Scene";
+
+import {Mesh} from "./scene/Mesh";
 
 export class AttributeLoader {
   values: Float32Array;

@@ -1,5 +1,5 @@
 import {CLoader} from "../AnimationFileLoader";
-import {GUI} from "../../pathtracer/Gui";
+import {GUI} from "../../pathtracer/ui/Gui";
 import BoundingBox from "./BoundingBox";
 import {Vec3} from "../../lib/tsm/Vec3";
 import {Mesh} from "../Scene";

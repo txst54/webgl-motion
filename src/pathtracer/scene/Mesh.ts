@@ -1,154 +1,13 @@
-import {Mat3, Mat4, Quat, Vec3, Vec4} from "../lib/TSM.js";
-import {AttributeLoader, BoneLoader, MeshGeometryLoader, MeshLoader} from "./AnimationFileLoader.js";
-import {vec3ToString, vec4ToString} from "./Utils.js";
-import {Quaternion} from "../lib/threejs/src/math/Quaternion";
-
-//TODO: Generate cylinder geometry for highlighting bones
-
-//General class for handling GLSL attributes
-export class Attribute {
-  values: Float32Array;
-  count: number;
-  itemSize: number;
-
-  constructor(attr: AttributeLoader) {
-    this.values = attr.values;
-    this.count = attr.count;
-    this.itemSize = attr.itemSize;
-  }
-}
-
-//Class for handling mesh vertices and skin weights
-export class MeshGeometry {
-  position: Attribute;
-  normal: Attribute;
-  uv: Attribute | null;
-  skinIndex: Attribute; // bones indices that affect each vertex
-  skinWeight: Attribute; // weight of associated bone
-  v0: Attribute; // position of each vertex of the mesh *in the coordinate system of bone skinIndex[0]'s joint*. Perhaps useful for LBS.
-  v1: Attribute;
-  v2: Attribute;
-  v3: Attribute;
-
-  constructor(mesh: MeshGeometryLoader) {
-    this.position = new Attribute(mesh.position);
-    this.normal = new Attribute(mesh.normal);
-    if (mesh.uv) { this.uv = new Attribute(mesh.uv); }
-    this.skinIndex = new Attribute(mesh.skinIndex);
-    this.skinWeight = new Attribute(mesh.skinWeight);
-    this.v0 = new Attribute(mesh.v0);
-    this.v1 = new Attribute(mesh.v1);
-    this.v2 = new Attribute(mesh.v2);
-    this.v3 = new Attribute(mesh.v3);
-  }
-
-
-}
-
-//Class for handling bones in the skeleton rig
-export class Bone {
-  public parent!: number;
-  public children!: number[];
-  public position!: Vec3; // current position of the bone's joint *in world coordinates*. Used by the provided skeleton shader, so you need to keep this up to date.
-  public endpoint!: Vec3; // current position of the bone's second (non-joint) endpoint, in world coordinates
-  public rotation!: Quat; // current orientation of the joint *with respect to world coordinates*
-  public R!: Mat3;
-  public U!: Mat4;
-  public D!: Mat4;
-  public T!: Mat4;
-  public T_n!: Mat4;
-  public local_position!: Vec4;
-  public local_endpoint!: Vec4;
-  public length!: number;
-
-  constructor(bone: BoneLoader) {
-    if (bone != null) {
-      this.parent = bone.parent;
-      this.children = Array.from(bone.children);
-      this.position = bone.position.copy();
-      this.endpoint = bone.endpoint.copy();
-      this.rotation = bone.rotation.copy();
-    }
-  }
-
-  instantiateTransforms(bones: Bone[]) {
-    let baseU: Mat4;
-    // console.log(this.parent + " " + vec3ToString(this.position) + vec3ToString(this.endpoint));
-    let parent = bones[this.parent];
-    this.T_n = new Mat4([1, 0, 0, 0,
-      0, 1, 0, 0,
-      0, 0, 1, 0,
-      this.endpoint.x - this.position.x, this.endpoint.y - this.position.y, this.endpoint.z - this.position.z, 1]);
-    if (this.parent == -1) {
-      this.T = new Mat4([1, 0, 0, 0,
-        0, 1, 0, 0,
-        0, 0, 1, 0,
-        this.position.x, this.position.y, this.position.z, 1]);
-      this.U = this.T.copy();
-      this.D = this.T.copy();
-    } else {
-      this.T = new Mat4([1, 0, 0, 0,
-        0, 1, 0, 0,
-        0, 0, 1, 0,
-        this.position.x - parent.position.x, this.position.y - parent.position.y, this.position.z - parent.position.z, 1]);
-      this.U = bones[this.parent].U.copy().multiply(this.T);
-      this.D = this.U.copy();
-    }
-    this.R = Mat3.identity.copy();
-    let pos4 = new Vec4([...this.position.xyz, 1]);
-    let end4 = new Vec4([...this.endpoint.xyz, 1]);
-    this.local_position = this.U.copy().inverse().multiplyVec4(pos4);
-    this.local_endpoint = this.U.copy().multiply(this.T_n).inverse().multiplyVec4(end4);
-    // console.log(vec4ToString(this.local_position) + " " + vec4ToString(this.local_endpoint));
-    for (let child_idx of this.children) {
-      bones[child_idx].instantiateTransforms(bones);
-    }
-  }
-
-  getUniformRotateTransform() {
-    let dir = new Vec3();
-    this.endpoint.subtract(this.position, dir);
-    let length = dir.length();
-    let localZ = new Vec3([0, 0, 1]);
-    let axis = Vec3.cross(dir, localZ);
-    dir.normalize();
-    axis.normalize();
-    let angle = Math.acos(Vec3.dot(localZ, dir));
-    // console.log(angle);
-    let rotationMatrix = Mat4.identity.copy();
-    if (Math.abs(angle) < 1e-6 || Math.abs(angle - Math.PI) < 1e-6) {
-      // console.log("Edging");
-      if (Math.abs(angle - Math.PI) < 1e-6) {
-        // 180 degree rotation, just flip z
-        rotationMatrix = new Mat4(
-          [1, 0, 0, 0,
-          0, 1, 0, 0,
-          0, 0, -1, 0,
-          0, 0, 0, 1]);
-      }
-    } else {
-      Mat4.identity.rotate(angle, axis, rotationMatrix);
-    }
-
-    let translationMatrix = new Mat4([1, 0, 0, 0,
-                                                    0, 1, 0, 0,
-                                                    0, 0, 1, 0,
-                                                    -this.position.x, -this.position.y, -this.position.z, 1]);
-
-    let scaleMatrix = new Mat4([1, 0, 0, 0,
-                                              0, 1, 0, 0,
-                                              0, 0, 1/length, 0,
-                                              0, 0, 0, 1]);
-    // let pos4 = new Vec4([...this.position.xyz, 1]);
-    // let end4 = new Vec4([...this.endpoint.xyz, 1]);
-    // console.log(vec4ToString(pos4) + " -> " + vec4ToString(transform.multiplyVec4(pos4)));
-    // console.log(vec4ToString(end4) + " -> " + vec4ToString(transform.multiplyVec4(end4)));
-    return scaleMatrix.copy().multiply(rotationMatrix.copy().multiply(translationMatrix));
-  }
-
-}
-
 //Class for handling the overall mesh and rig
+import {MeshGeometry} from "./MeshGeometry";
+import {Mat4} from "../../lib/tsm/Mat4";
+import {Vec3} from "../../lib/tsm/Vec3";
+import {Bone} from "./Bone";
+import {Mat3} from "../../lib/tsm/Mat3";
+import {MeshLoader} from "../AnimationFileLoader";
+import {Quat} from "../../lib/tsm/Quat";
+import {Vec4} from "../../lib/tsm/Vec4";
+
 export class Mesh {
   public geometry: MeshGeometry;
   public worldMatrix: Mat4; // in this project all meshes and rigs have been transformed into world coordinates for you
@@ -197,9 +56,9 @@ export class Mesh {
 
   //TODO: Create functionality for bone manipulation/key-framing
 
-  public rotateBone(bone_idx: number, q_delta:Quat) {
+  public rotateBone(bone_idx: number, q_delta: Quat) {
     let bone = this.bones[bone_idx];
-    bone.R =q_delta.toMat3().multiply(bone.R);
+    bone.R = q_delta.toMat3().multiply(bone.R);
     this.propagateRot(bone);
   }
 
@@ -207,7 +66,7 @@ export class Mesh {
     let children: Bone[] = [];
     children.push(bone);
     while (children.length > 0) {
-      bone = children.pop();
+      bone = children.pop() as Bone;
       if (bone.parent != -1) {
         bone.D = this.bones[bone.parent].D.copy().multiply(bone.T.copy().multiply(bone.R.toMat4()));
       } else {

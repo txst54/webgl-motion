@@ -1,5 +1,6 @@
 import { Mat4, Vec3, Vec4, Vec2, Mat2, Quat } from "../lib/TSM.js";
-import {Bone} from "./Scene";
+
+import {Bone} from "./scene/Bone";
 
 export class Ray {
     private readonly origin: Vec4;

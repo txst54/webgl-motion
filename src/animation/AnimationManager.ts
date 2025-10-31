@@ -1,5 +1,5 @@
 import {CLoader} from "./AnimationFileLoader";
-import {GUI} from "../pathtracer/Gui";
+import {GUI} from "../pathtracer/ui/Gui";
 import BVH from "./objects/BVH";
 import {BaseRenderer} from "../pathtracer/renderpasses/BaseRenderer";
 

@@ -1,11 +1,11 @@
-import { Camera } from "../lib/webglutils/Camera.js";
-import { CanvasAnimation } from "../lib/webglutils/CanvasAnimation.js";
-import { SkinningAnimation } from "./App.js";
-import { Mat4, Vec3, Vec4, Vec2, Mat2, Quat } from "../lib/TSM.js";
-import { Bone } from "./Scene.js";
-import { RenderPass } from "../lib/webglutils/RenderPass.js";
-import {vec3ToString, vec4ToString} from "./Utils.js";
-import { Ray } from "./Ray.js";
+import { Camera } from "../../lib/webglutils/Camera";
+import { CanvasAnimation } from "../../lib/webglutils/CanvasAnimation";
+import { SkinningAnimation } from "../App";
+import { Mat4, Vec3, Vec4, Vec2, Mat2, Quat } from "../../lib/TSM";
+import { RenderPass } from "../../lib/webglutils/RenderPass";
+import {vec3ToString, vec4ToString} from "../Utils";
+import { Ray } from "../Ray";
+import {Bone} from "../scene/Bone";
 
 /**
  * Might be useful for designing any animation GUI
@@ -80,8 +80,6 @@ export class GUI implements IGUI {
     this.selectedMesh = -1;
     this.selectedBoneSub = -1;
 
-    this.reset();
-
     this.registerEventListeners(canvas);
   }
 
@@ -112,21 +110,13 @@ export class GUI implements IGUI {
   /**
    * Resets the state of the GUI
    */
-  public reset(): void {
+  public reset(camera: Camera): void {
     this.fps = false;
     this.dragging = false;
     this.time = 0;
     this.mode = Mode.edit;
 
-    this.camera = new Camera(
-      new Vec3([0, 0, -6]),
-      new Vec3([0, 0, 0]),
-      new Vec3([0, 1, 0]),
-      45,
-      this.width / this.viewPortHeight,
-      0.1,
-      1000.0
-    );
+    this.camera = camera;
     this.kfViewMat = this.camera.viewMatrix().copy();
     this.kfProjMat = this.camera.projMatrix().copy();
   }
@@ -176,19 +166,20 @@ export class GUI implements IGUI {
   public dragStart(mouse: MouseEvent): void {
     let x = mouse.offsetX;
     let y = mouse.offsetY;
-    const panelStartX = this.width;
+    const sceneBounds = this.animation.getSceneObject().getSceneBounds();
+    const panelStartX = sceneBounds.x + sceneBounds.width;
 
     if (x >= panelStartX) {
       this.dragging = true;
       const x_ndc = (2 * (x - panelStartX)) / this.animation.PANEL_WIDTH - 1;
       const y_ndc = 1 - (2 * y) / this.height;
       if (mouse.buttons == 1) {
-        let kfQuadVertices = this.animation.getKfQuadVertices();
+        let kfQuadVertices = this.animation.getKeyframeSidebar().getKfQuadVertices();
         let selectedIdx = -1;
         for (let i = 0; i < kfQuadVertices.length; i+=4) {
           if (kfQuadVertices[i].y >= y_ndc && kfQuadVertices[i+2].y <= y_ndc) {
             selectedIdx = i / 4;
-            this.animation.setSelectedTexture(selectedIdx);
+            this.animation.getKeyframeSidebar().setSelectedTexture(selectedIdx);
             break;
           }
         }
@@ -228,9 +219,10 @@ export class GUI implements IGUI {
   public drag(mouse: MouseEvent): void {
     let x = mouse.offsetX;
     let y = mouse.offsetY;
-    const x_ndc = (2 * x) / this.width - 1;
-    const y_ndc = 1 - (2 * y) / this.viewPortHeight;
-    const panelStartX = this.width;
+    const sceneBounds = this.animation.getSceneObject().getSceneBounds();
+    const x_ndc = (2 * x) / sceneBounds.width - 1;
+    const y_ndc = 1 - (2 * y) / sceneBounds.height;
+    const panelStartX = sceneBounds.x + sceneBounds.width;
 
     if (this.dragging) {
       const dx = mouse.screenX - this.prevX;
@@ -261,8 +253,8 @@ export class GUI implements IGUI {
           if (this.selectedBone != -1) {
             //generate 2 rays from the camera based off mouse movement
             const ray = this.mouseCameraRay(x_ndc, y_ndc);
-            const prev_x_ndc = (2 * this.prevX) / this.width - 1;
-            const prev_y_ndc = 1 - (2 * this.prevY) / this.viewPortHeight;
+            const prev_x_ndc = (2 * this.prevX) / sceneBounds.width - 1;
+            const prev_y_ndc = 1 - (2 * this.prevY) / sceneBounds.height;
             const rayPrev = this.mouseCameraRay(prev_x_ndc, prev_y_ndc);
             let mesh = this.animation.getScene().meshes[this.selectedMesh];
             const bone_pos = mesh.bones[this.selectedBone].position;
@@ -484,24 +476,24 @@ export class GUI implements IGUI {
         break;
       }
       case "Delete":
-        this.animation.deleteKfTexture();
+        this.animation.getKeyframeSidebar().deleteKfTexture();
         this.animation.getScene().meshes.forEach((mesh, index) => {
-          mesh.deleteKeyFrame(this.animation.getSelectedTexture());
+          mesh.deleteKeyFrame(this.animation.getKeyframeSidebar().getSelectedTexture());
         });
-        this.animation.setSelectedTexture(-1);
+        this.animation.getKeyframeSidebar().setSelectedTexture(-1);
         break;
       case "KeyU":
-        if (this.animation.getSelectedTexture() != -1) {
+        if (this.animation.getKeyframeSidebar().getSelectedTexture() != -1) {
           this.animation.getScene().meshes.forEach((mesh, index) => {
-            mesh.addKeyFrame(this.animation.getSelectedTexture());
+            mesh.addKeyFrame(this.animation.getKeyframeSidebar().getSelectedTexture());
           });
-          this.animation.setKfTexture(this.animation.getSelectedTexture());
+          this.animation.getKeyframeSidebar().setKfTexture(this.animation.getKeyframeSidebar().getSelectedTexture());
         }
         break;
       case "Equal":
-        if (this.animation.getSelectedTexture() != -1) {
+        if (this.animation.getKeyframeSidebar().getSelectedTexture() != -1) {
           this.animation.getScene().meshes.forEach((mesh, index) => {
-            mesh.setFrame(this.animation.getSelectedTexture());
+            mesh.setFrame(this.animation.getKeyframeSidebar().getSelectedTexture());
           });
         }
         break;
