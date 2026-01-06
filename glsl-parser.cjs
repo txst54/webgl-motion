@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 
 const SHADER_DIR = path.join(__dirname, 'src', 'shaders');
-const OUTPUT_FILE = path.join(__dirname, 'src/pathtracer', 'Shaders.ts');
+const OUTPUT_FILE = path.join(__dirname, 'src/motion', 'Shaders.ts');
 
 // Get all .vert.glsl and .frag.glsl files in shader directory
 function getShaderFiles() {
